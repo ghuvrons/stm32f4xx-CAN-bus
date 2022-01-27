@@ -8,8 +8,10 @@
 #ifndef DRIVER_CANBUS_H_
 #define DRIVER_CANBUS_H_
 
+/**** Includes ****************************/
 #include "stm32f4xx_hal.h"
 
+/**** Defines *****************************/
 #ifndef CAN_LISTENER_MAX
 #define CAN_LISTENER_MAX 3
 #endif
@@ -23,6 +25,7 @@
 #endif
 
 
+/**** Exported Types **********************/
 typedef union
 {
   uint8_t u8[8];
@@ -48,12 +51,18 @@ typedef struct {
 typedef struct {
   CAN_HandleTypeDef   *hcan;
   uint32_t            id;
-  void                (*onRecvData)(CAN_RxHeaderTypeDef *header, CAN_Data_t data);
+  uint32_t            filterMaskIdHigh;
+  uint32_t            filterMaskIdLow;
+  void                (*onRecvData)(CAN_RxHeaderTypeDef*, CAN_Data_t*);
 } CAN_Rx_t;
 
 
+/**** Public Variables ********************/
 CAN_Rx_t *CAN_Listener[CAN_LISTENER_MAX];
 
+
+/**** Public Function Prototypes **********/
+// interrupt handler
 void CAN_IrqHandler(CAN_HandleTypeDef *hcan, uint32_t RxFifo);
 
 // CAN Tx Methods
