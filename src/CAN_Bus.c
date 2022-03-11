@@ -97,19 +97,19 @@ void CAN_IrqHandler(CAN_HandleTypeDef *hcan, uint32_t RxFifo)
       canrx = CAN_Listener[i];
       if ((canrx != NULL) && (hcan == canrx->hcan) && (canrx->onRecvData != NULL))
       {
+        if (canrx->id == 0 && canrx->filterMaskIdHigh == 0 && canrx->filterMaskIdLow == 0)
+          continue;
+
         if (header.IDE == CAN_ID_STD)
           id = header.StdId;
         else if (header.IDE == CAN_ID_EXT)
           id = header.ExtId;
         else continue;
 
-        if (canrx->id == 0 && canrx->filterMaskIdHigh == 0 && canrx->filterMaskIdLow == 0)
-          continue;
-
         if (canrx->id == id
             || (canrx->id == 0
-                && ((canrx->filterMaskIdHigh == 0 || !(id & canrx->filterMaskIdHigh))
-                && (canrx->filterMaskIdLow == 0 || !((~id) & canrx->filterMaskIdLow))
+                && (canrx->filterMaskIdHigh & id) & 0x1FFFFFFF == 0
+                && (canrx->filterMaskIdLow & (~id)) & 0x1FFFFFFF == 0
         ))) {
           canrx->onRecvData(&header, &data);
         }
