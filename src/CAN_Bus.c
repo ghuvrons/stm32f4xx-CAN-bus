@@ -108,9 +108,9 @@ void CAN_IrqHandler(CAN_HandleTypeDef *hcan, uint32_t RxFifo)
 
         if (canrx->id == id
             || (canrx->id == 0
-                && (canrx->filterMaskIdHigh & id) & 0x1FFFFFFF == 0
-                && (canrx->filterMaskIdLow & (~id)) & 0x1FFFFFFF == 0
-        ))) {
+                && ((canrx->filterMaskIdHigh & id) & 0x1FFFFFFF) == 0
+                && ((canrx->filterMaskIdLow & (~id)) & 0x1FFFFFFF) == 0
+        )) {
           canrx->onRecvData(&header, &data);
         }
       }
