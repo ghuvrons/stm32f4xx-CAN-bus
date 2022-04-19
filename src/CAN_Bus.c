@@ -9,6 +9,8 @@
 #include "CAN_Bus.h"
 
 
+static CAN_Rx_t *CAN_Listener[CAN_LISTENER_MAX];
+
 /**** Public Function Implementations *****/
 
 /**

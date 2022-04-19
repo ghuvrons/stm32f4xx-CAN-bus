@@ -58,7 +58,6 @@ typedef struct {
 
 
 /**** Public Variables ********************/
-CAN_Rx_t *CAN_Listener[CAN_LISTENER_MAX];
 
 
 /**** Public Function Prototypes **********/
