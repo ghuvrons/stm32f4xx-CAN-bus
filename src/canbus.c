@@ -65,7 +65,16 @@ HAL_StatusTypeDef CAN_Tx_SendData(CAN_Tx_t *cantx, CAN_Data_t *data, uint8_t len
 void CAN_Rx_Init(CAN_Rx_t *canrx, CAN_HandleTypeDef *hcan, uint32_t id)
 {
   canrx->hcan = hcan;
-  canrx->id = id;
+  if (id != 0) {
+    canrx->filterIdHigh = id;
+    canrx->filterIdLow = ~id;
+    canrx->filterMaskIdHigh = 0x1FFFFFFF;
+    canrx->filterMaskIdLow = 0x1FFFFFFF;
+  }
+  canrx->filterMaskIdHigh &= 0x1FFFFFFF;
+  canrx->filterMaskIdLow &= 0x1FFFFFFF;
+  canrx->filterIdHigh &= canrx->filterMaskIdHigh;
+  canrx->filterIdLow &= canrx->filterMaskIdLow;
 
   for (uint8_t i = 0; i < CAN_LISTENER_MAX; i++) {
     if (CAN_Listener[i] == canrx || CAN_Listener[i] == NULL) {
@@ -94,27 +103,22 @@ void CAN_IrqHandler(CAN_HandleTypeDef *hcan, uint32_t RxFifo)
   if (HAL_CAN_GetRxFifoFillLevel(hcan, RxFifo) > 0
       && HAL_CAN_GetRxMessage(hcan, RxFifo, &header, data.u8) == HAL_OK)
   {
+
+    if (header.IDE == CAN_ID_STD)
+      id = header.StdId;
+    else if (header.IDE == CAN_ID_EXT)
+      id = header.ExtId;
+    else return;
+
     for(uint8_t i = 0; i < CAN_LISTENER_MAX; i++)
     {
       canrx = CAN_Listener[i];
-      if ((canrx != NULL) && (hcan == canrx->hcan) && (canrx->onRecvData != NULL))
-      {
-        if (canrx->id == 0 && canrx->filterMaskIdHigh == 0 && canrx->filterMaskIdLow == 0)
-          continue;
-
-        if (header.IDE == CAN_ID_STD)
-          id = header.StdId;
-        else if (header.IDE == CAN_ID_EXT)
-          id = header.ExtId;
-        else continue;
-
-        if (canrx->id == id
-            || (canrx->id == 0
-                && ((canrx->filterMaskIdHigh & id) & 0x1FFFFFFF) == 0
-                && ((canrx->filterMaskIdLow & (~id)) & 0x1FFFFFFF) == 0
-        )) {
-          canrx->onRecvData(&header, &data);
-        }
+      if (hcan == canrx->hcan
+          && canrx->onRecvData != NULL
+          && (canrx->filterMaskIdHigh&id) == canrx->filterIdHigh
+          && (canrx->filterMaskIdLow&(~id)) == canrx->filterIdLow
+      ) {
+        canrx->onRecvData(&header, &data);
       }
     }
   }

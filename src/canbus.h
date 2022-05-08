@@ -50,7 +50,8 @@ typedef struct {
 
 typedef struct {
   CAN_HandleTypeDef   *hcan;
-  uint32_t            id;
+  uint32_t            filterIdHigh;
+  uint32_t            filterIdLow;
   uint32_t            filterMaskIdHigh;
   uint32_t            filterMaskIdLow;
   void                (*onRecvData)(CAN_RxHeaderTypeDef*, CAN_Data_t*);
