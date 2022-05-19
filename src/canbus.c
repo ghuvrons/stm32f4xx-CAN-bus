@@ -19,10 +19,16 @@ static CAN_Rx_t *CAN_Listener[CAN_LISTENER_MAX];
  * @param  hcan : pointer to can peripheral
  * @param  StdId is CAN Id
  */
-void CAN_Tx_Init(CAN_Tx_t *cantx, CAN_HandleTypeDef *hcan, uint32_t StdId)
+void CAN_Tx_Init(CAN_Tx_t *cantx, CAN_HandleTypeDef *hcan, uint32_t id, uint8_t isExtended)
 {
   cantx->hcan = hcan;
-  cantx->id = StdId;
+  cantx->id = id;
+  if (isExtended) {
+    cantx->id &= 0x1FFFFFFF;
+    cantx->id |= 0x80000000;
+  } else {
+    cantx->id &= 0x000007FF;
+  }
 }
 
 
@@ -48,10 +54,17 @@ HAL_StatusTypeDef CAN_Tx_SendData(CAN_Tx_t *cantx, CAN_Data_t *data, uint8_t len
     }
   }
 
-  header.IDE = CAN_ID_STD;
   header.DLC = length;
   header.RTR = CAN_RTR_DATA;
-  header.StdId = cantx->id;
+
+  if ((cantx->id & 0x80000000) == 0) {
+    header.IDE = CAN_ID_STD;
+    header.StdId = cantx->id;
+  } else {
+    header.IDE = CAN_ID_EXT;
+    header.ExtId = cantx->id & 0x1FFFFFFF;
+  }
+
   return HAL_CAN_AddTxMessage(cantx->hcan, &(header), data->u8, &(cantx->mailbox));
 }
 

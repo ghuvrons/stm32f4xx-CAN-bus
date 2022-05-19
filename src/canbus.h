@@ -66,7 +66,7 @@ typedef struct {
 void CAN_IrqHandler(CAN_HandleTypeDef *hcan, uint32_t RxFifo);
 
 // CAN Tx Methods
-void CAN_Tx_Init(CAN_Tx_t*, CAN_HandleTypeDef*, uint32_t StdId);
+void CAN_Tx_Init(CAN_Tx_t*, CAN_HandleTypeDef*, uint32_t id, uint8_t isExtended);
 HAL_StatusTypeDef CAN_Tx_SendData(CAN_Tx_t*, CAN_Data_t *data, uint8_t length, uint32_t timeout);
 
 // CAN Rx Methods
