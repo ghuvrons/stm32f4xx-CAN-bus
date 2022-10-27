@@ -1,12 +1,12 @@
 /*
- * canbus.h
+ * event-listener.h
  *
  *  Created on: Nov 10, 2021
  *      Author: janoko
  */
 
-#ifndef DRIVER_CANBUS_H_
-#define DRIVER_CANBUS_H_
+#ifndef EVENT_LISTENER_H_
+#define EVENT_LISTENER_H_
 
 /**** Includes ****************************/
 #include <stddef.h>
@@ -65,4 +65,4 @@ EL_Status_t EventListener_Init(EventListener_t*, uint16_t listenersNb);
 EL_Status_t EventListener_On(EventListener_t*, Event_t, EventCallback_t);
 EL_Status_t EventListener_OnMultiple(EventListener_t*, EventFilter_t*, EventCallback_t);
 EL_Status_t EventListener_Handle(EventListener_t*, Event_t, void *data, uint16_t dataSz);
-#endif /* CANBUS_CANBUS_H_ */
+#endif /* EVENT_LISTENER_H_ */
