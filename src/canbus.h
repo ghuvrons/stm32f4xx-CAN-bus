@@ -9,66 +9,60 @@
 #define DRIVER_CANBUS_H_
 
 /**** Includes ****************************/
-#include "stm32f4xx_hal.h"
+#include <stddef.h>
+#include <stdint.h>
 
 /**** Defines *****************************/
-#ifndef CAN_LISTENER_MAX
-#define CAN_LISTENER_MAX 3
+#ifndef EL_MALLOC
+#include <stdlib.h>
+#define EL_MALLOC(sz) malloc(sz)
 #endif
-
-#ifndef CAN_Delay
-#define CAN_Delay(ms) HAL_Delay(ms)
-#endif
-
-#ifndef CAN_GetTick
-#define CAN_GetTick() HAL_GetTick()
-#endif
-
 
 /**** Exported Types **********************/
-typedef union
-{
-  uint8_t u8[8];
-  uint16_t u16[4];
-  uint32_t u32[2];
-  uint64_t u64;
-  int8_t i8[8];
-  int16_t i16[4];
-  int32_t i32[2];
-  int64_t i64;
-  char CHAR[8];
-  float FLOAT[2];
-  double DOUBLE;
-} CAN_Data_t;
 
+typedef enum {
+  EL_OK,
+  EL_ERROR,
+} EL_Status_t;
+
+typedef uint32_t Event_t;
 typedef struct {
-  CAN_HandleTypeDef   *hcan;
-  uint32_t            id;
-  uint32_t            mailbox;
-  uint32_t            timeout;
-} CAN_Tx_t;
+  uint32_t        eventHigh;
+  uint32_t        eventLow;
+  uint32_t        maskEventHigh;
+  uint32_t        maskEventLow;
+} EventFilter_t;
 
-typedef struct {
-  CAN_HandleTypeDef   *hcan;
-  uint32_t            filterIdHigh;
-  uint32_t            filterIdLow;
-  uint32_t            filterMaskIdHigh;
-  uint32_t            filterMaskIdLow;
-  void                (*onRecvData)(CAN_RxHeaderTypeDef*, CAN_Data_t*);
-} CAN_Rx_t;
+typedef void (*EventCallback_t)(Event_t, void* data, uint16_t dataSz);
 
+typedef struct Listener_t {
+  union {
+    Event_t         event;
+    EventFilter_t   filter;
+  } event;
+  EventCallback_t cb;
+} Listener_t;
+
+typedef struct EventListener_t {
+  Listener_t *listeners;
+  uint16_t   listenerSz;
+  uint16_t   singleEventListenerNb;
+  uint16_t   multEventListenerNb;
+} EventListener_t;
 
 /**** Public Variables ********************/
 
 
 /**** Public Function Prototypes **********/
 // interrupt handler
-void CAN_IrqHandler(CAN_HandleTypeDef *hcan, uint32_t RxFifo);
 
 // CAN Tx Methods
-void CAN_Tx_Init(CAN_Tx_t*, CAN_HandleTypeDef*, uint32_t id, uint8_t isExtended);
-HAL_StatusTypeDef CAN_Tx_SendData(CAN_Tx_t*, CAN_Data_t *data, uint8_t length, uint32_t timeout);
+//void CAN_Tx_Init(CAN_Tx_t*, CAN_HANDLER*, uint32_t id, uint8_t isExtended);
+//HAL_StatusTypeDef CAN_Tx_SendData(CAN_Tx_t*, CAN_Data_t *data, uint8_t length, uint32_t timeout);
 
 // CAN Rx Methods
-void CAN_Rx_Init(CAN_Rx_t*, CAN_HandleTypeDef*, uint32_t id);
+EL_Status_t EventListener_Init(EventListener_t*, uint16_t listenersNb);
+EL_Status_t EventListener_On(EventListener_t*, Event_t, EventCallback_t);
+EL_Status_t EventListener_OnMultiple(EventListener_t*, EventFilter_t*, EventCallback_t);
+EL_Status_t EventListener_Handle(EventListener_t*, Event_t, void *data, uint16_t dataSz);
 #endif /* CANBUS_CANBUS_H_ */

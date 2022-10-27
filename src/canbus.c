@@ -7,132 +7,149 @@
 
 /**** Includes ****************************/
 #include "canbus.h"
-
-
-static CAN_Rx_t *CAN_Listener[CAN_LISTENER_MAX];
+#include <string.h>
 
 /**** Public Function Implementations *****/
 
 /**
- * @brief  Initialing peripheral and Id for canrx handler
- * @param  cantx pointer to can tx handler
- * @param  hcan : pointer to can peripheral
- * @param  StdId is CAN Id
+ * @brief  Initialize event listener.
+ * @param  eListener pointer to EventListener_t
+ * @param  listenersNb max number of listener
  */
-void CAN_Tx_Init(CAN_Tx_t *cantx, CAN_HandleTypeDef *hcan, uint32_t id, uint8_t isExtended)
+EL_Status_t EventListener_Init(EventListener_t *eListener, uint16_t listenersNb)
 {
-  cantx->hcan = hcan;
-  cantx->id = id;
-  if (isExtended) {
-    cantx->id &= 0x1FFFFFFF;
-    cantx->id |= 0x80000000;
-  } else {
-    cantx->id &= 0x000007FF;
-  }
+  eListener->listenerSz = listenersNb;
+  if (eListener->listenerSz == 0) return EL_ERROR;
+
+  eListener->listeners = EL_MALLOC(sizeof(Listener_t) * listenersNb);
+  eListener->singleEventListenerNb = 0;
+  eListener->multEventListenerNb = 0;
+  return EL_OK;
 }
 
-
 /**
- * @brief  Sending data
- * @param  cantx pointer to can tx handler
- * @param  data is bytes of send data
- * @param  length is length of data bytes
- * @param  operation timeout
- * @return HAL status
+ * @brief  Setup event handler for one event.
+ * @param  eListener pointer to EventListener_t
+ * @param  event
+ * @param  cb is event callback to handling event
  */
-HAL_StatusTypeDef CAN_Tx_SendData(CAN_Tx_t *cantx, CAN_Data_t *data, uint8_t length, uint32_t timeout)
+EL_Status_t EventListener_On(EventListener_t *eListener, Event_t event, EventCallback_t cb)
 {
-  CAN_TxHeaderTypeDef header;
-  uint32_t tickstart = CAN_GetTick();
+  uint16_t i;
+  uint16_t listenerLen = eListener->singleEventListenerNb + eListener->multEventListenerNb;
 
-  if (cantx->hcan == NULL) return HAL_ERROR;
+  // check whether listener is full
+  if (eListener->listenerSz == listenerLen)
+    return EL_ERROR;
 
-  while (HAL_CAN_GetTxMailboxesFreeLevel(cantx->hcan) == 0) {
-    CAN_Delay(1);
-    if (timeout > 0 && (CAN_GetTick()-tickstart) > timeout) {
-      return HAL_TIMEOUT;
+  for (i = listenerLen; i < eListener->singleEventListenerNb; i--) {
+
+  }
+
+  // save as sorted listener
+  for (;; i--) {
+    if (i == 0) break;
+
+    // check prev index
+    if (eListener->listeners[i-1].event.event > event)
+      // right shift
+      memcpy(&eListener->listeners[i], &eListener->listeners[i-1], sizeof(Listener_t));
+
+    else if (eListener->listeners[i-1].event.event == event) {
+      eListener->listeners[i-1].cb = cb;
+      goto handleExistsListener;
     }
-  }
 
-  header.DLC = length;
-  header.RTR = CAN_RTR_DATA;
-
-  if ((cantx->id & 0x80000000) == 0) {
-    header.IDE = CAN_ID_STD;
-    header.StdId = cantx->id;
-  } else {
-    header.IDE = CAN_ID_EXT;
-    header.ExtId = cantx->id & 0x1FFFFFFF;
-  }
-
-  return HAL_CAN_AddTxMessage(cantx->hcan, &(header), data->u8, &(cantx->mailbox));
-}
-
-
-/**
- * @brief  Initialing peripheral and Id for canrx handler
- * @param  cantx pointer to can tx handler
- * @param  hcan pointer to an CAN_HandleTypeDef (can peripheral)
- * @param  StdId is CAN Id
- */
-void CAN_Rx_Init(CAN_Rx_t *canrx, CAN_HandleTypeDef *hcan, uint32_t id)
-{
-  canrx->hcan = hcan;
-  if (id != 0) {
-    canrx->filterIdHigh = id;
-    canrx->filterIdLow = ~id;
-    canrx->filterMaskIdHigh = 0x1FFFFFFF;
-    canrx->filterMaskIdLow = 0x1FFFFFFF;
-  }
-  canrx->filterMaskIdHigh &= 0x1FFFFFFF;
-  canrx->filterMaskIdLow &= 0x1FFFFFFF;
-  canrx->filterIdHigh &= canrx->filterMaskIdHigh;
-  canrx->filterIdLow &= canrx->filterMaskIdLow;
-
-  for (uint8_t i = 0; i < CAN_LISTENER_MAX; i++) {
-    if (CAN_Listener[i] == canrx || CAN_Listener[i] == NULL) {
-      CAN_Listener[i] = canrx;
+    else
       break;
-    }
+
   }
+
+  eListener->listeners[i].event.event = event;
+  eListener->listeners[i].cb = cb;
+  eListener->singleEventListenerNb++;
+  return EL_OK;
+
+handleExistsListener:
+  for (; i < listenerLen; i++) {
+    memcpy(&eListener->listeners[i], &eListener->listeners[i+1], sizeof(Listener_t));
+  }
+  return EL_OK;
+}
+
+/**
+ * @brief  Setup event handler for multiple event.
+ * @param  eListener pointer to EventListener_t
+ * @param  filter for filtering event
+ * @param  cb is event callback to handling event
+ */
+EL_Status_t EventListener_OnMultiple(EventListener_t *eListener,
+                                     EventFilter_t *filter,
+                                     EventCallback_t cb)
+{
+  uint16_t listenerLen = eListener->singleEventListenerNb + eListener->multEventListenerNb;
+
+  // check whether listener is full
+  if (eListener->listenerSz == listenerLen)
+    return EL_ERROR;
+
+  Listener_t *listener = &eListener->listeners[listenerLen];
+
+  memcpy(&listener->event.filter, &filter, sizeof(EventFilter_t));
+
+  listener->event.filter.eventHigh &= listener->event.filter.maskEventHigh;
+  listener->event.filter.eventLow &= listener->event.filter.maskEventLow;
+  listener->cb = cb;
+
+  return EL_OK;
 }
 
 
 /**
- * @brief  Handling interrupt/incoming data.
- *         Then run canrx listener.
- * @param  hcan pointer to an CAN_HandleTypeDef structure that contains
- *         the configuration information for the specified CAN.
- * @param  RxFifo Rx FIFO.
- *         This parameter can be a value of @arg CAN_receive_FIFO_number.
+ * @brief  Handling event when event done. Then run callback
+ * @param  eListener pointer to an EventListener_t structure 
+ * @param  event
+ * @param  data which is followed to event.
+ * @param  dataSz is size of data.
  */
-void CAN_IrqHandler(CAN_HandleTypeDef *hcan, uint32_t RxFifo)
+EL_Status_t EventListener_Handle(EventListener_t *eListener, Event_t event, void *data, uint16_t dataSz)
 {
-  CAN_Rx_t            *canrx  = NULL;
-  CAN_RxHeaderTypeDef header  = {0};
-  CAN_Data_t          data;
-  uint32_t            id = 0;
+  uint16_t listenerLen = eListener->singleEventListenerNb + eListener->multEventListenerNb;
+  uint16_t startFlag = 0, endFlag = eListener->singleEventListenerNb, midFlag = 0;
+  Listener_t *listener;
+  EL_Status_t status = EL_ERROR;
 
-  if (HAL_CAN_GetRxFifoFillLevel(hcan, RxFifo) > 0
-      && HAL_CAN_GetRxMessage(hcan, RxFifo, &header, data.u8) == HAL_OK)
-  {
+  while (1) {
+    if (startFlag == endFlag) break;
+    midFlag = (startFlag+endFlag)/2;
+    listener = &eListener->listeners[midFlag];
 
-    if (header.IDE == CAN_ID_STD)
-      id = header.StdId;
-    else if (header.IDE == CAN_ID_EXT)
-      id = header.ExtId;
-    else return;
+    if (listener->event.event > event) {
+      endFlag = midFlag;
+      continue;
+    }
+    
+    if (listener->event.event < event) {
+      startFlag = midFlag+1;
+      continue;
+    }
 
-    for(uint8_t i = 0; i < CAN_LISTENER_MAX; i++)
-    {
-      canrx = CAN_Listener[i];
-      if (hcan == canrx->hcan
-          && canrx->onRecvData != NULL
-          && (canrx->filterMaskIdHigh&id) == canrx->filterIdHigh
-          && (canrx->filterMaskIdLow&(~id)) == canrx->filterIdLow
-      ) {
-        canrx->onRecvData(&header, &data);
-      }
+    // found
+    listener->cb(event, data, dataSz);
+    return EL_OK;
+  }
+
+  for (uint8_t i = eListener->singleEventListenerNb; i < listenerLen; i++) {
+    listener = &eListener->listeners[i];
+
+    if (listener->cb != NULL
+        && (listener->event.filter.maskEventHigh&event) == listener->event.filter.eventHigh
+        && (listener->event.filter.eventLow&(~event)) == listener->event.filter.eventLow
+    ) {
+      listener->cb(event, data, dataSz);
+      status = EL_OK;
     }
   }
+
+  return status;
 }
