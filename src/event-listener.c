@@ -42,14 +42,13 @@ EL_Status_t EventListener_On(EventListener_t *eListener, Event_t event, EventCal
   if (eListener->listenerSz == listenerLen)
     return EL_ERROR;
 
-  for (i = listenerLen; i < eListener->singleEventListenerNb; i--) {
-
+  // shift right multiEventListener memory
+  for (i = listenerLen; i > eListener->singleEventListenerNb; i--) {
+    memcpy(&eListener->listeners[i], &eListener->listeners[i-1], sizeof(Listener_t));
   }
 
   // save as sorted listener
-  for (;; i--) {
-    if (i == 0) break;
-
+  for (; i > 0 ; i--) {
     // check prev index
     if (eListener->listeners[i-1].event.event > event)
       // right shift
@@ -62,7 +61,6 @@ EL_Status_t EventListener_On(EventListener_t *eListener, Event_t event, EventCal
 
     else
       break;
-
   }
 
   eListener->listeners[i].event.event = event;
@@ -95,11 +93,12 @@ EL_Status_t EventListener_OnMultiple(EventListener_t *eListener,
 
   Listener_t *listener = &eListener->listeners[listenerLen];
 
-  memcpy(&listener->event.filter, &filter, sizeof(EventFilter_t));
+  memcpy(&listener->event.filter, filter, sizeof(EventFilter_t));
 
   listener->event.filter.eventHigh &= listener->event.filter.maskEventHigh;
   listener->event.filter.eventLow &= listener->event.filter.maskEventLow;
   listener->cb = cb;
+  eListener->multEventListenerNb++;
 
   return EL_OK;
 }
