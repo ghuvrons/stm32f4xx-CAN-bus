@@ -143,7 +143,7 @@ EL_Status_t EventListener_Handle(EventListener_t *eListener, Event_t event, void
 
     if (listener->cb != NULL
         && (listener->event.filter.maskEventHigh&event) == listener->event.filter.eventHigh
-        && (listener->event.filter.eventLow&(~event)) == listener->event.filter.eventLow
+        && (listener->event.filter.maskEventLow&(~event)) == listener->event.filter.eventLow
     ) {
       listener->cb(event, data, dataSz);
       status = EL_OK;
